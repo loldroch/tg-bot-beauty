@@ -1,219 +1,684 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Онлайн-запись</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
   <style>
+    /* ── Base ─────────────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --accent: #e91e8c;
-      --accent-light: #fce4f3;
-      --radius: 12px;
-      --shadow: 0 4px 20px rgba(233, 30, 140, .15);
+      --pink: #ec4899;
+      --purple: #a855f7;
+      --grad: linear-gradient(135deg, #ec4899, #a855f7);
     }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--tg-theme-bg-color, #fff);
-      color: var(--tg-theme-text-color, #1a1a1a);
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      background: #080810;
+      color: #f1f5f9;
       min-height: 100dvh;
-      padding: 16px;
+      overflow-x: hidden;
     }
 
-    h1 {
+    /* ── Scrollbar ────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { display: none; }
+    * { scrollbar-width: none; }
+
+    /* ── Skeleton loader ──────────────────────────────────────────────────── */
+    .sk {
+      background: linear-gradient(90deg, #1a1a2e 25%, #2a2a42 50%, #1a1a2e 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.6s ease-in-out infinite;
+      border-radius: 14px;
+    }
+    @keyframes shimmer {
+      0%   { background-position:  200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ── Glass card ───────────────────────────────────────────────────────── */
+    .glass {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+    }
+
+    /* ── Gradient helpers ─────────────────────────────────────────────────── */
+    .g-text {
+      background: var(--grad);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .g-bg { background: var(--grad); }
+
+    /* ── Progress bar ─────────────────────────────────────────────────────── */
+    #progressTrack {
+      height: 3px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    #progressFill {
+      height: 100%;
+      background: var(--grad);
+      border-radius: 99px;
+      transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── Steps ────────────────────────────────────────────────────────────── */
+    #stepsWrap { position: relative; min-height: 420px; }
+    .step {
+      position: absolute; inset: 0;
+      opacity: 0; pointer-events: none;
+    }
+    .step.active { opacity: 1; pointer-events: all; }
+
+    /* ── Service cards ────────────────────────────────────────────────────── */
+    .svc-card {
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid rgba(255,255,255,0.07);
+      border-radius: 18px;
+      padding: 16px 12px;
+      cursor: pointer;
+      transition: border-color .22s, box-shadow .22s, background .22s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .svc-card:active { transform: scale(.97); }
+    .svc-card.sel {
+      border-color: var(--pink);
+      background: rgba(236,72,153,.1);
+      box-shadow: 0 0 28px rgba(236,72,153,.2);
+    }
+
+    /* ── Date chips ───────────────────────────────────────────────────────── */
+    .d-chip {
+      min-width: 60px;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 10px 6px;
       text-align: center;
-      font-size: 1.3rem;
-      margin-bottom: 20px;
-      color: var(--accent);
+      cursor: pointer;
+      transition: all .22s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .d-chip.today { border-color: rgba(236,72,153,.35); }
+    .d-chip.sel {
+      background: var(--grad);
+      border-color: transparent;
+      box-shadow: 0 0 20px rgba(236,72,153,.3);
+    }
+    .d-chip.sel .dc-day, .d-chip.sel .dc-num, .d-chip.sel .dc-mon {
+      color: #fff !important;
     }
 
-    .form-group {
-      margin-bottom: 14px;
-    }
-
-    label {
-      display: block;
-      font-size: .85rem;
+    /* ── Time chips ───────────────────────────────────────────────────────── */
+    .t-chip {
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 10px 2px;
+      text-align: center;
+      font-size: .82rem;
       font-weight: 600;
-      margin-bottom: 6px;
-      opacity: .75;
+      cursor: pointer;
+      transition: all .2s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
-
-    input, select, textarea {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1.5px solid #e0e0e0;
-      border-radius: var(--radius);
-      font-size: 1rem;
-      background: var(--tg-theme-secondary-bg-color, #f9f9f9);
-      color: var(--tg-theme-text-color, #1a1a1a);
-      outline: none;
-      transition: border-color .2s;
-    }
-
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--accent);
-    }
-
-    textarea { resize: vertical; min-height: 80px; }
-
-    .price-tag {
-      display: inline-block;
-      margin-top: 6px;
-      background: var(--accent-light);
-      color: var(--accent);
-      border-radius: 6px;
-      padding: 3px 10px;
-      font-size: .8rem;
-      font-weight: 700;
-    }
-
-    #submitBtn {
-      width: 100%;
-      padding: 15px;
-      margin-top: 8px;
-      background: var(--accent);
+    .t-chip.sel {
+      background: var(--grad);
+      border-color: transparent;
+      box-shadow: 0 0 18px rgba(236,72,153,.3);
       color: #fff;
+    }
+    .t-chip.busy {
+      background: rgba(255,255,255,0.02);
+      border-color: rgba(255,255,255,0.04);
+      color: rgba(255,255,255,.2);
+      cursor: not-allowed;
+      font-size: .7rem;
+      font-weight: 400;
+    }
+
+    /* ── Inputs ───────────────────────────────────────────────────────────── */
+    .inp {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 14px 16px;
+      color: #f1f5f9;
+      font-size: .97rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .inp:focus {
+      border-color: var(--pink);
+      box-shadow: 0 0 0 3px rgba(236,72,153,.12);
+    }
+    .inp::placeholder { color: rgba(255,255,255,.25); }
+    textarea.inp { resize: none; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .btn-primary {
+      background: var(--grad);
       border: none;
-      border-radius: var(--radius);
-      font-size: 1.05rem;
+      border-radius: 14px;
+      padding: 15px;
+      color: #fff;
+      font-size: 1rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: var(--shadow);
-      transition: opacity .2s;
+      box-shadow: 0 6px 24px rgba(236,72,153,.35);
+      transition: opacity .2s, transform .15s;
+      -webkit-tap-highlight-color: transparent;
     }
+    .btn-primary:active { transform: scale(.97); opacity: .9; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
 
-    #submitBtn:active { opacity: .85; }
-    #submitBtn:disabled { opacity: .5; cursor: default; }
+    .btn-ghost {
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 14px;
+      color: rgba(255,255,255,.65);
+      font-size: .97rem;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .btn-ghost:active { background: rgba(255,255,255,.12); }
 
-    .error { color: #e53935; font-size: .82rem; margin-top: 4px; display: none; }
+    /* ── Success screen ───────────────────────────────────────────────────── */
+    #successScreen {
+      position: fixed; inset: 0;
+      background: #080810;
+      z-index: 60;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      padding: 32px;
+      text-align: center;
+    }
+    #successScreen.show { opacity: 1; pointer-events: all; }
+
+    /* ── Spinner ──────────────────────────────────────────────────────────── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(236,72,153,.3);
+      border-top-color: var(--pink);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <h1>💅 Онлайн-запись</h1>
 
-  <form id="bookingForm" novalidate>
+<!-- ═══════════════════════════════════════════════════════ SKELETON -->
+<div id="skeleton" class="fixed inset-0 bg-[#080810] z-50 p-5 flex flex-col gap-4">
+  <div class="sk h-7 w-44 mx-auto mb-1"></div>
+  <div class="sk h-3 w-full"></div>
+  <div class="sk h-3 w-3/4"></div>
+  <div class="grid grid-cols-2 gap-3 mt-2">
+    <div class="sk h-28"></div><div class="sk h-28"></div>
+    <div class="sk h-28"></div><div class="sk h-28"></div>
+  </div>
+  <div class="mt-auto sk h-14 w-full rounded-2xl"></div>
+</div>
 
-    <div class="form-group">
-      <label for="name">Ваше имя *</label>
-      <input id="name" type="text" placeholder="Анна Иванова" required />
-      <div class="error" id="nameError">Введите ваше имя</div>
+<!-- ═══════════════════════════════════════════════════════ APP -->
+<div id="app" class="opacity-0 flex flex-col min-h-dvh pb-6 px-4 pt-4 max-w-md mx-auto">
+
+  <!-- Header -->
+  <div class="text-center mb-4">
+    <h1 class="text-[1.55rem] font-bold g-text tracking-tight">Онлайн-запись</h1>
+    <p class="text-white/35 text-sm mt-0.5">Beauty Studio</p>
+  </div>
+
+  <!-- Progress -->
+  <div id="progressTrack" class="mb-3">
+    <div id="progressFill" style="width:33%"></div>
+  </div>
+
+  <!-- Step labels -->
+  <div class="flex justify-between mb-5 text-xs font-semibold px-0.5">
+    <span id="lbl1" class="text-pink-400">Услуга</span>
+    <span id="lbl2" class="text-white/30">Дата и время</span>
+    <span id="lbl3" class="text-white/30">Данные</span>
+  </div>
+
+  <!-- Steps -->
+  <div id="stepsWrap" class="flex-1">
+
+    <!-- ── STEP 1: Services ──────────────────────────────────────────── -->
+    <div class="step active" id="step-1">
+      <p class="text-white/45 text-sm font-medium mb-3">Выберите услугу</p>
+      <div class="grid grid-cols-2 gap-3" id="svcGrid"></div>
     </div>
 
-    <div class="form-group">
-      <label for="phone">Телефон *</label>
-      <input id="phone" type="tel" placeholder="+7 (999) 000-00-00" required />
-      <div class="error" id="phoneError">Введите корректный номер</div>
+    <!-- ── STEP 2: Date + Time ──────────────────────────────────────── -->
+    <div class="step" id="step-2">
+      <p class="text-white/45 text-sm font-medium mb-2">Выберите дату</p>
+
+      <!-- Date scroll -->
+      <div class="flex gap-2 overflow-x-auto pb-3 mb-5" id="dateRow"></div>
+
+      <!-- Time header -->
+      <div class="flex items-center gap-2 mb-3">
+        <p class="text-white/45 text-sm font-medium">Выберите время</p>
+        <div id="timeSpinner" class="spinner hidden"></div>
+      </div>
+
+      <!-- Time grid -->
+      <div class="grid grid-cols-4 gap-2" id="timeGrid"></div>
+
+      <!-- Legend -->
+      <div class="flex items-center gap-1.5 mt-3 text-xs text-white/30">
+        <span class="inline-block w-3 h-3 rounded bg-white/10"></span> занято
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="service">Услуга *</label>
-      <select id="service" required>
-        <option value="">— Выберите услугу —</option>
-      </select>
-      <span class="price-tag" id="priceTag" style="display:none"></span>
-      <div class="error" id="serviceError">Выберите услугу</div>
+    <!-- ── STEP 3: Details ──────────────────────────────────────────── -->
+    <div class="step" id="step-3">
+      <!-- Summary card -->
+      <div class="glass rounded-2xl p-4 mb-5">
+        <div class="flex items-center gap-2 mb-1">
+          <span id="sumEmoji" class="text-xl"></span>
+          <span id="sumSvc" class="font-semibold text-white text-sm"></span>
+        </div>
+        <div class="text-xs text-white/45">
+          <span id="sumDate"></span>&nbsp;•&nbsp;<span id="sumTime"></span>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-3">
+        <div>
+          <label class="block text-xs text-white/40 font-semibold mb-1.5">Ваше имя *</label>
+          <input id="iName" class="inp" type="text" placeholder="Анна Иванова" autocomplete="name"/>
+          <p class="text-red-400 text-xs mt-1 hidden" id="errName">Введите ваше имя</p>
+        </div>
+        <div>
+          <label class="block text-xs text-white/40 font-semibold mb-1.5">Телефон *</label>
+          <input id="iPhone" class="inp" type="tel" placeholder="+7 (999) 000-00-00" autocomplete="tel"/>
+          <p class="text-red-400 text-xs mt-1 hidden" id="errPhone">Введите корректный номер</p>
+        </div>
+        <div>
+          <label class="block text-xs text-white/40 font-semibold mb-1.5">Пожелания</label>
+          <textarea id="iComment" class="inp" rows="3" placeholder="Дизайн, пожелания к мастеру…"></textarea>
+        </div>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="date">Дата *</label>
-      <input id="date" type="date" required />
-      <div class="error" id="dateError">Выберите дату</div>
-    </div>
+  </div><!-- /stepsWrap -->
 
-    <div class="form-group">
-      <label for="time">Время *</label>
-      <input id="time" type="time" min="09:00" max="20:00" required />
-      <div class="error" id="timeError">Выберите время (09:00–20:00)</div>
-    </div>
+  <!-- Navigation -->
+  <div class="flex gap-3 mt-5" id="navRow">
+    <button class="btn-ghost hidden" id="btnBack" style="flex:1" onclick="prevStep()">← Назад</button>
+    <button class="btn-primary" id="btnNext" style="flex:2;width:100%" onclick="nextStep()">Далее →</button>
+  </div>
 
-    <div class="form-group">
-      <label for="comment">Пожелания (необязательно)</label>
-      <textarea id="comment" placeholder="Дизайн, пожелания к мастеру…"></textarea>
-    </div>
+</div><!-- /app -->
 
-    <button type="submit" id="submitBtn">✅ Записаться</button>
-  </form>
+<!-- ═══════════════════════════════════════════════════════ SUCCESS -->
+<div id="successScreen">
+  <div id="sucIcon" class="text-8xl mb-6" style="transform:scale(0)">🌸</div>
+  <h2 class="text-2xl font-bold g-text mb-3">Запись создана!</h2>
+  <p class="text-white/50 text-sm leading-relaxed" id="sucText"></p>
+</div>
 
-  <script>
-    // ── Telegram WebApp init ────────────────────────────────────────────────
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
 
-    // ── Services catalog (mirrors config.py — edit here too if you change it)
-    const SERVICES = {
-      manicure:            { name: "Маникюр классический",   price: 1500,  duration: 60,  emoji: "💅" },
-      gel_manicure:        { name: "Маникюр с гель-лаком",   price: 2500,  duration: 90,  emoji: "✨" },
-      pedicure:            { name: "Педикюр",                 price: 2000,  duration: 90,  emoji: "🦶" },
-      nail_extension:      { name: "Наращивание ногтей",      price: 3500,  duration: 150, emoji: "💎" },
-      eyebrow_correction:  { name: "Коррекция бровей",        price: 800,   duration: 30,  emoji: "🪮" },
-      brow_lamination:     { name: "Ламинирование бровей",    price: 1800,  duration: 60,  emoji: "🌟" },
-    };
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// CONFIG — mirror config.py (update both when adding/removing items)
+// ═══════════════════════════════════════════════════════════════════
+const SERVICES = {
+  manicure:           { name: "Маникюр классический",  price: 1500, duration: 60,  emoji: "💅" },
+  gel_manicure:       { name: "Маникюр с гель-лаком",  price: 2500, duration: 90,  emoji: "✨" },
+  pedicure:           { name: "Педикюр",                price: 2000, duration: 90,  emoji: "🦶" },
+  nail_extension:     { name: "Наращивание ногтей",     price: 3500, duration: 150, emoji: "💎" },
+  eyebrow_correction: { name: "Коррекция бровей",       price: 800,  duration: 30,  emoji: "🪮" },
+  brow_lamination:    { name: "Ламинирование бровей",   price: 1800, duration: 60,  emoji: "🌟" },
+};
 
-    // ── Populate service select ─────────────────────────────────────────────
-    const serviceEl = document.getElementById("service");
-    for (const [key, svc] of Object.entries(SERVICES)) {
-      const opt = document.createElement("option");
-      opt.value = key;
-      opt.textContent = `${svc.emoji} ${svc.name}`;
-      serviceEl.appendChild(opt);
-    }
+// Mirror TIME_SLOTS from config.py
+const TIME_SLOTS = [
+  "09:00","09:30","10:00","10:30","11:00","11:30",
+  "12:00","12:30","13:00","13:30","14:00","14:30",
+  "15:00","15:30","16:00","16:30","17:00","17:30",
+  "18:00","18:30","19:00","19:30",
+];
 
-    serviceEl.addEventListener("change", () => {
-      const tag = document.getElementById("priceTag");
-      const svc = SERVICES[serviceEl.value];
-      if (svc) {
-        tag.textContent = `${svc.price.toLocaleString("ru")} ₽ · ${svc.duration} мин`;
-        tag.style.display = "inline-block";
-      } else {
-        tag.style.display = "none";
+// ═══════════════════════════════════════════════════════════════════
+// TELEGRAM INIT
+// ═══════════════════════════════════════════════════════════════════
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+const tgUser   = tg.initDataUnsafe?.user || {};
+const USER_ID  = tgUser.id       || null;
+const USERNAME = tgUser.username || null;
+
+// API base URL injected by bot as ?api=https://…
+const API_BASE = new URLSearchParams(location.search).get('api') || '';
+
+// ═══════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════
+const S = { step: 1, service: null, date: null, time: null, busySlots: [] };
+
+// ═══════════════════════════════════════════════════════════════════
+// SKELETON → REVEAL
+// ═══════════════════════════════════════════════════════════════════
+buildServices();
+buildDates();
+
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    anime({
+      targets: '#skeleton',
+      opacity: [1, 0],
+      duration: 500,
+      easing: 'easeOutQuart',
+      complete: () => {
+        document.getElementById('skeleton').style.display = 'none';
+        anime({
+          targets: '#app',
+          opacity: [0, 1],
+          translateY: [16, 0],
+          duration: 500,
+          easing: 'easeOutQuart',
+        });
+        anime({
+          targets: '.svc-card',
+          opacity: [0, 1],
+          translateY: [18, 0],
+          duration: 380,
+          delay: anime.stagger(55),
+          easing: 'easeOutBack',
+        });
+      },
+    });
+  }, 1100);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// BUILD SERVICES
+// ═══════════════════════════════════════════════════════════════════
+function buildServices() {
+  const grid = document.getElementById('svcGrid');
+  for (const [key, svc] of Object.entries(SERVICES)) {
+    const el = document.createElement('div');
+    el.className = 'svc-card opacity-0';
+    el.dataset.key = key;
+    el.innerHTML = `
+      <div class="text-2xl mb-2">${svc.emoji}</div>
+      <div class="text-[.82rem] font-semibold text-white/90 leading-snug mb-2">${svc.name}</div>
+      <div class="text-xs font-bold" style="color:var(--pink)">${svc.price.toLocaleString('ru-RU')} ₽</div>
+      <div class="text-[.7rem] text-white/30 mt-0.5">${svc.duration} мин</div>
+    `;
+    el.addEventListener('click', () => pickService(key, el));
+    grid.appendChild(el);
+  }
+}
+
+function pickService(key, el) {
+  document.querySelectorAll('.svc-card').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+  S.service = key;
+  anime({ targets: el, scale: [.95, 1], duration: 180, easing: 'easeOutBack' });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BUILD DATES (next 14 days)
+// ═══════════════════════════════════════════════════════════════════
+const DAYS  = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const MONS  = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+
+function buildDates() {
+  const row  = document.getElementById('dateRow');
+  const base = new Date();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+
+    const el = document.createElement('div');
+    el.className = 'd-chip' + (i === 0 ? ' today' : '');
+    el.dataset.date = iso;
+    el.innerHTML = `
+      <div class="dc-day text-[.65rem] text-white/40 mb-1">${DAYS[d.getDay()]}</div>
+      <div class="dc-num text-base font-bold">${d.getDate()}</div>
+      <div class="dc-mon text-[.65rem] text-white/40 mt-0.5">${MONS[d.getMonth()]}</div>
+    `;
+    el.addEventListener('click', () => pickDate(iso, el));
+    row.appendChild(el);
+  }
+}
+
+async function pickDate(iso, el) {
+  document.querySelectorAll('.d-chip').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+  S.date = iso;
+  S.time = null;
+  await loadBusySlots(iso);
+  buildTimeChips();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BUSY SLOTS API
+// ═══════════════════════════════════════════════════════════════════
+async function loadBusySlots(date) {
+  if (!API_BASE) { S.busySlots = []; return; }
+  const spinner = document.getElementById('timeSpinner');
+  spinner.classList.remove('hidden');
+  try {
+    const r = await fetch(`${API_BASE}/api/busy-slots?date=${date}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const j = await r.json();
+    S.busySlots = j.slots || [];
+  } catch {
+    S.busySlots = [];
+  } finally {
+    spinner.classList.add('hidden');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BUILD TIME CHIPS
+// ═══════════════════════════════════════════════════════════════════
+function buildTimeChips() {
+  const grid = document.getElementById('timeGrid');
+  grid.innerHTML = '';
+  for (const slot of TIME_SLOTS) {
+    const busy = S.busySlots.includes(slot);
+    const el   = document.createElement('div');
+    el.className = 't-chip' + (busy ? ' busy' : '');
+    el.textContent = busy ? 'Занято' : slot;
+    if (!busy) el.addEventListener('click', () => pickTime(slot, el));
+    grid.appendChild(el);
+  }
+  anime({
+    targets: '.t-chip:not(.busy)',
+    opacity: [0, 1],
+    scale:   [.8, 1],
+    duration: 280,
+    delay: anime.stagger(18),
+    easing: 'easeOutBack',
+  });
+}
+
+function pickTime(slot, el) {
+  document.querySelectorAll('.t-chip').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+  S.time = slot;
+  anime({ targets: el, scale: [.88, 1], duration: 180, easing: 'easeOutBack' });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP NAVIGATION
+// ═══════════════════════════════════════════════════════════════════
+function nextStep() {
+  if (S.step === 1) {
+    if (!S.service) { shake('#step-1'); return; }
+    goTo(2);
+  } else if (S.step === 2) {
+    if (!S.date || !S.time) { shake('#step-2'); return; }
+    fillSummary();
+    goTo(3);
+  } else {
+    submit();
+  }
+}
+
+function prevStep() { if (S.step > 1) goTo(S.step - 1); }
+
+function goTo(next) {
+  const cur  = document.getElementById(`step-${S.step}`);
+  const dest = document.getElementById(`step-${next}`);
+  const dir  = next > S.step ? 1 : -1;
+
+  anime({
+    targets: cur,
+    opacity: [1, 0],
+    translateX: [0, -36 * dir],
+    duration: 230,
+    easing: 'easeInQuart',
+    complete: () => {
+      cur.classList.remove('active');
+      dest.classList.add('active');
+      anime({
+        targets: dest,
+        opacity: [0, 1],
+        translateX: [36 * dir, 0],
+        duration: 280,
+        easing: 'easeOutQuart',
+      });
+
+      // Auto-select today on first entry to step 2
+      if (next === 2 && !S.date) {
+        const first = document.querySelector('.d-chip');
+        if (first) first.click();
       }
-    });
+    },
+  });
 
-    // ── Set min date to today ───────────────────────────────────────────────
-    const dateEl = document.getElementById("date");
-    dateEl.min = new Date().toISOString().slice(0, 10);
+  S.step = next;
+  updateProgress();
+  updateNav();
+}
 
-    // ── Form validation & submit ────────────────────────────────────────────
-    function showError(id, show) {
-      document.getElementById(id).style.display = show ? "block" : "none";
-    }
+function updateProgress() {
+  document.getElementById('progressFill').style.width = Math.round(S.step / 3 * 100) + '%';
+  ['lbl1','lbl2','lbl3'].forEach((id, i) => {
+    const lbl = document.getElementById(id);
+    lbl.className = (i + 1) <= S.step
+      ? 'text-pink-400 font-semibold'
+      : 'text-white/30 font-semibold';
+  });
+}
 
-    function validatePhone(p) {
-      return /^[\d\s\+\-\(\)]{7,16}$/.test(p.trim());
-    }
+function updateNav() {
+  const back = document.getElementById('btnBack');
+  const next = document.getElementById('btnNext');
+  if (S.step > 1) { back.classList.remove('hidden'); next.style.flex = '2'; }
+  else            { back.classList.add('hidden');    next.style.flex = '1'; next.style.width = '100%'; }
+  next.textContent = S.step === 3 ? '✅ Записаться' : 'Далее →';
+}
 
-    document.getElementById("bookingForm").addEventListener("submit", (e) => {
-      e.preventDefault();
+function shake(target) {
+  anime({
+    targets: target,
+    translateX: [-7, 7, -5, 5, -3, 3, 0],
+    duration: 420,
+    easing: 'easeInOutSine',
+  });
+}
 
-      const name    = document.getElementById("name").value.trim();
-      const phone   = document.getElementById("phone").value.trim();
-      const service = serviceEl.value;
-      const date    = dateEl.value;
-      const time    = document.getElementById("time").value;
-      const comment = document.getElementById("comment").value.trim();
+// ═══════════════════════════════════════════════════════════════════
+// SUMMARY CARD
+// ═══════════════════════════════════════════════════════════════════
+function fillSummary() {
+  const svc = SERVICES[S.service];
+  document.getElementById('sumEmoji').textContent = svc.emoji;
+  document.getElementById('sumSvc').textContent   = svc.name;
+  document.getElementById('sumDate').textContent  = fmtDate(S.date);
+  document.getElementById('sumTime').textContent  = S.time;
+}
 
-      let valid = true;
+function fmtDate(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'short' });
+}
 
-      showError("nameError",    !name    && (valid = false));
-      showError("phoneError",   !validatePhone(phone) && (valid = false));
-      showError("serviceError", !service && (valid = false));
-      showError("dateError",    !date    && (valid = false));
-      showError("timeError",    !time    && (valid = false));
+// ═══════════════════════════════════════════════════════════════════
+// SUBMIT
+// ═══════════════════════════════════════════════════════════════════
+function submit() {
+  const name    = document.getElementById('iName').value.trim();
+  const phone   = document.getElementById('iPhone').value.trim();
+  const comment = document.getElementById('iComment').value.trim();
 
-      if (!valid) return;
+  let ok = true;
+  const phoneOk = /^[\d\s+\-()]{7,16}$/.test(phone);
+  if (!name)    { setErr('errName',  true);  ok = false; } else { setErr('errName',  false); }
+  if (!phoneOk) { setErr('errPhone', true);  ok = false; } else { setErr('errPhone', false); }
 
-      const btn = document.getElementById("submitBtn");
-      btn.disabled = true;
-      btn.textContent = "⏳ Отправляем…";
+  if (!ok) { shake('#step-3'); return; }
 
-      const payload = JSON.stringify({ name, phone, service, date, time, comment });
-      tg.sendData(payload);
-    });
-  </script>
+  const btn = document.getElementById('btnNext');
+  btn.disabled = true;
+  btn.textContent = '⏳ Отправляем…';
+
+  tg.sendData(JSON.stringify({
+    name, phone, comment,
+    service:  S.service,
+    date:     S.date,
+    time:     S.time,
+    user_id:  USER_ID,
+    username: USERNAME,
+  }));
+
+  showSuccess(name);
+}
+
+function setErr(id, show) {
+  document.getElementById(id).classList.toggle('hidden', !show);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SUCCESS SCREEN
+// ═══════════════════════════════════════════════════════════════════
+function showSuccess(name) {
+  const svc    = SERVICES[S.service];
+  const screen = document.getElementById('successScreen');
+  screen.classList.add('show');
+  anime({ targets: '#successScreen', opacity: [0, 1], duration: 450, easing: 'easeOutQuart' });
+  anime({
+    targets: '#sucIcon',
+    scale:   [0, 1.15, 1],
+    duration: 680,
+    delay:    250,
+    easing:   'easeOutElastic(1, .6)',
+  });
+  document.getElementById('sucText').innerHTML =
+    `${name}, ваша запись на <b style="color:#f1f5f9">${svc.name}</b><br>` +
+    `${fmtDate(S.date)} в ${S.time} принята.<br><br>` +
+    `Мастер свяжется с вами для подтверждения 🌸`;
+}
+</script>
 </body>
 </html>
