@@ -385,34 +385,40 @@ const S = { step: 1, service: null, date: null, time: null, busySlots: [] };
 buildServices();
 buildDates();
 
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    anime({
-      targets: '#skeleton',
-      opacity: [1, 0],
-      duration: 500,
-      easing: 'easeOutQuart',
-      complete: () => {
-        document.getElementById('skeleton').style.display = 'none';
-        anime({
-          targets: '#app',
-          opacity: [0, 1],
-          translateY: [16, 0],
-          duration: 500,
-          easing: 'easeOutQuart',
-        });
-        anime({
-          targets: '.svc-card',
-          opacity: [0, 1],
-          translateY: [18, 0],
-          duration: 380,
-          delay: anime.stagger(55),
-          easing: 'easeOutBack',
-        });
-      },
-    });
-  }, 1100);
-});
+function revealApp() {
+  const skeleton = document.getElementById('skeleton');
+  const app      = document.getElementById('app');
+
+  if (typeof anime === 'undefined') {
+    // Anime.js CDN failed — show app immediately without animation
+    skeleton.style.display = 'none';
+    app.style.opacity = '1';
+    document.querySelectorAll('.svc-card').forEach(el => { el.style.opacity = '1'; });
+    return;
+  }
+
+  anime({
+    targets: skeleton,
+    opacity: [1, 0],
+    duration: 450,
+    easing: 'easeOutQuart',
+    complete: () => {
+      skeleton.style.display = 'none';
+      anime({ targets: app, opacity: [0, 1], translateY: [14, 0], duration: 450, easing: 'easeOutQuart' });
+      anime({
+        targets: '.svc-card',
+        opacity: [0, 1],
+        translateY: [16, 0],
+        duration: 360,
+        delay: anime.stagger(50),
+        easing: 'easeOutBack',
+      });
+    },
+  });
+}
+
+// DOM is ready (script is at bottom of <body>); no need to wait for 'load'
+setTimeout(revealApp, 600);
 
 // ═══════════════════════════════════════════════════════════════════
 // BUILD SERVICES
