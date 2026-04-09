@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Онлайн-запись</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #e91e8c;
+      --accent-light: #fce4f3;
+      --radius: 12px;
+      --shadow: 0 4px 20px rgba(233, 30, 140, .15);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--tg-theme-bg-color, #fff);
+      color: var(--tg-theme-text-color, #1a1a1a);
+      min-height: 100dvh;
+      padding: 16px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.3rem;
+      margin-bottom: 20px;
+      color: var(--accent);
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: .85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      opacity: .75;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      background: var(--tg-theme-secondary-bg-color, #f9f9f9);
+      color: var(--tg-theme-text-color, #1a1a1a);
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+
+    textarea { resize: vertical; min-height: 80px; }
+
+    .price-tag {
+      display: inline-block;
+      margin-top: 6px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: .8rem;
+      font-weight: 700;
+    }
+
+    #submitBtn {
+      width: 100%;
+      padding: 15px;
+      margin-top: 8px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: opacity .2s;
+    }
+
+    #submitBtn:active { opacity: .85; }
+    #submitBtn:disabled { opacity: .5; cursor: default; }
+
+    .error { color: #e53935; font-size: .82rem; margin-top: 4px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>💅 Онлайн-запись</h1>
+
+  <form id="bookingForm" novalidate>
+
+    <div class="form-group">
+      <label for="name">Ваше имя *</label>
+      <input id="name" type="text" placeholder="Анна Иванова" required />
+      <div class="error" id="nameError">Введите ваше имя</div>
+    </div>
+
+    <div class="form-group">
+      <label for="phone">Телефон *</label>
+      <input id="phone" type="tel" placeholder="+7 (999) 000-00-00" required />
+      <div class="error" id="phoneError">Введите корректный номер</div>
+    </div>
+
+    <div class="form-group">
+      <label for="service">Услуга *</label>
+      <select id="service" required>
+        <option value="">— Выберите услугу —</option>
+      </select>
+      <span class="price-tag" id="priceTag" style="display:none"></span>
+      <div class="error" id="serviceError">Выберите услугу</div>
+    </div>
+
+    <div class="form-group">
+      <label for="date">Дата *</label>
+      <input id="date" type="date" required />
+      <div class="error" id="dateError">Выберите дату</div>
+    </div>
+
+    <div class="form-group">
+      <label for="time">Время *</label>
+      <input id="time" type="time" min="09:00" max="20:00" required />
+      <div class="error" id="timeError">Выберите время (09:00–20:00)</div>
+    </div>
+
+    <div class="form-group">
+      <label for="comment">Пожелания (необязательно)</label>
+      <textarea id="comment" placeholder="Дизайн, пожелания к мастеру…"></textarea>
+    </div>
+
+    <button type="submit" id="submitBtn">✅ Записаться</button>
+  </form>
+
+  <script>
+    // ── Telegram WebApp init ────────────────────────────────────────────────
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    // ── Services catalog (mirrors config.py — edit here too if you change it)
+    const SERVICES = {
+      manicure:            { name: "Маникюр классический",   price: 1500,  duration: 60,  emoji: "💅" },
+      gel_manicure:        { name: "Маникюр с гель-лаком",   price: 2500,  duration: 90,  emoji: "✨" },
+      pedicure:            { name: "Педикюр",                 price: 2000,  duration: 90,  emoji: "🦶" },
+      nail_extension:      { name: "Наращивание ногтей",      price: 3500,  duration: 150, emoji: "💎" },
+      eyebrow_correction:  { name: "Коррекция бровей",        price: 800,   duration: 30,  emoji: "🪮" },
+      brow_lamination:     { name: "Ламинирование бровей",    price: 1800,  duration: 60,  emoji: "🌟" },
+    };
+
+    // ── Populate service select ─────────────────────────────────────────────
+    const serviceEl = document.getElementById("service");
+    for (const [key, svc] of Object.entries(SERVICES)) {
+      const opt = document.createElement("option");
+      opt.value = key;
+      opt.textContent = `${svc.emoji} ${svc.name}`;
+      serviceEl.appendChild(opt);
+    }
+
+    serviceEl.addEventListener("change", () => {
+      const tag = document.getElementById("priceTag");
+      const svc = SERVICES[serviceEl.value];
+      if (svc) {
+        tag.textContent = `${svc.price.toLocaleString("ru")} ₽ · ${svc.duration} мин`;
+        tag.style.display = "inline-block";
+      } else {
+        tag.style.display = "none";
+      }
+    });
+
+    // ── Set min date to today ───────────────────────────────────────────────
+    const dateEl = document.getElementById("date");
+    dateEl.min = new Date().toISOString().slice(0, 10);
+
+    // ── Form validation & submit ────────────────────────────────────────────
+    function showError(id, show) {
+      document.getElementById(id).style.display = show ? "block" : "none";
+    }
+
+    function validatePhone(p) {
+      return /^[\d\s\+\-\(\)]{7,16}$/.test(p.trim());
+    }
+
+    document.getElementById("bookingForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const name    = document.getElementById("name").value.trim();
+      const phone   = document.getElementById("phone").value.trim();
+      const service = serviceEl.value;
+      const date    = dateEl.value;
+      const time    = document.getElementById("time").value;
+      const comment = document.getElementById("comment").value.trim();
+
+      let valid = true;
+
+      showError("nameError",    !name    && (valid = false));
+      showError("phoneError",   !validatePhone(phone) && (valid = false));
+      showError("serviceError", !service && (valid = false));
+      showError("dateError",    !date    && (valid = false));
+      showError("timeError",    !time    && (valid = false));
+
+      if (!valid) return;
+
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true;
+      btn.textContent = "⏳ Отправляем…";
+
+      const payload = JSON.stringify({ name, phone, service, date, time, comment });
+      tg.sendData(payload);
+    });
+  </script>
+</body>
+</html>
